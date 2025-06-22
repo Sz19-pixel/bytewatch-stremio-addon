@@ -140,8 +140,12 @@ async function getSeriesStreams(imdbId, season, episode) {
     }));
 }
 
-// Vercel handler
+// Vercel handler with proper CORS headers
 module.exports = async (req, res) => {
+    // Always set CORS headers
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+
     if (req.url === '/manifest.json') {
         res.setHeader('Content-Type', 'application/json');
         res.status(200).end(JSON.stringify(manifest));
@@ -170,6 +174,7 @@ module.exports = async (req, res) => {
             }
         } catch (e) {
             logger.error(`Stream handler error: ${e}`);
+            res.setHeader('Content-Type', 'application/json');
             res.status(200).end(JSON.stringify({ streams: [] }));
             return;
         }
