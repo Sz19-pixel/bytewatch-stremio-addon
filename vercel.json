@@ -5,7 +5,9 @@
       "src": "api/index.js",
       "use": "@vercel/node",
       "config": {
-        "maxLambdaSize": "50mb"
+        "maxLambdaSize": "50mb",
+        "maxDuration": 30,
+        "memory": 1024
       }
     },
     {
@@ -35,12 +37,6 @@
       "dest": "/public/$1"
     }
   ],
-  "functions": {
-    "api/index.js": {
-      "maxDuration": 30,
-      "memory": 1024
-    }
-  },
   "headers": [
     {
       "source": "/api/(.*)",
