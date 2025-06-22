@@ -2,39 +2,37 @@
   "name": "bytewatch-stremio-addon",
   "version": "1.0.1",
   "description": "A Node.js app to scrape streaming websites for links and provide it to Stremio",
-  "main": "api/index.js",
-  "type": "commonjs",
+  "main": "index.js",
   "scripts": {
-    "start": "node api/index.js",
-    "dev": "node api/index.js",
-    "postinstall": "npx puppeteer browsers install chrome",
-    "test": "node -e \"console.log('Addon test - OK')\""
+    "start": "node index.js",
+    "dev": "vercel dev",
+    "build": "echo 'Build complete'",
+    "postinstall": "npx puppeteer browsers install chrome"
   },
   "keywords": [
     "stremio",
-    "addon",
+    "addon", 
     "streaming",
-    "scraper"
+    "movies",
+    "tv-shows",
+    "vidfast",
+    "broflix",
+    "fmovies"
   ],
-  "author": "93bx",
+  "author": "ByteWatch Team",
   "license": "ISC",
   "dependencies": {
-    "axios": "^1.6.0",
+    "axios": "^1.9.0",
     "node-cache": "^5.1.2",
     "puppeteer-real-browser": "^1.4.2",
-    "stremio-addon-sdk": "^1.6.8",
-    "winston": "^3.11.0",
+    "stremio-addon-sdk": "^1.1.6",
+    "winston": "^3.17.0",
     "xvfb": "^0.4.0"
   },
+  "devDependencies": {
+    "@vercel/node": "^3.0.0"
+  },
   "engines": {
-    "node": "18.x"
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/Sz19-pixel/bytewatch-stremio-addon.git"
-  },
-  "homepage": "https://github.com/Sz19-pixel/bytewatch-stremio-addon",
-  "bugs": {
-    "url": "https://github.com/Sz19-pixel/bytewatch-stremio-addon/issues"
+    "node": ">=18.0.0"
   }
 }
