@@ -15,26 +15,22 @@
       "use": "@vercel/static"
     }
   ],
-  "routes": [
+  "rewrites": [
     {
-      "src": "/",
-      "dest": "/api/index.js"
+      "source": "/",
+      "destination": "/api/index.js"
     },
     {
-      "src": "/manifest.json",
-      "dest": "/api/index.js"
+      "source": "/manifest.json",
+      "destination": "/api/index.js"
     },
     {
-      "src": "/stream/(.*)",
-      "dest": "/api/index.js"
+      "source": "/stream/(.*)",
+      "destination": "/api/index.js"
     },
     {
-      "src": "/health",
-      "dest": "/api/index.js"
-    },
-    {
-      "src": "/public/(.*)",
-      "dest": "/public/$1"
+      "source": "/health",
+      "destination": "/api/index.js"
     }
   ],
   "headers": [
