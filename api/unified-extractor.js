@@ -33,119 +33,236 @@ const extractors = {
 };
 
 function randomUserAgent() {
-  const versions = ['114.0.5735.198', '113.0.5672.126', '112.0.5615.138'];
-  const version = versions[Math.floor(Math.random() * versions.length)];
-  return `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${version} Safari/537.36`;
+    const versions = ['119.0.6045.105', '118.0.5993.117', '117.0.5938.149'];
+    const version = versions[Math.floor(Math.random() * versions.length)];
+    return `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${version} Safari/537.36`;
 }
 
 async function runExtractor(source, type, imdbId, season = null, episode = null) {
-    if (!extractors[source]) throw new Error(`Unknown source: ${source}`);
+    if (!extractors[source]) {
+        throw new Error(`Unknown source: ${source}`);
+    }
 
     const streamUrls = {};
-
     const url = extractors[source](type, imdbId, season, episode);
-
-    const {browser, page} = await connect({
-        headless: true,
-        args: [
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-web-security',
-            "--disable-dev-shm-usage",
-            '--disable-features=IsolateOrigins,site-per-process',
-            '--enable-popup-blocking'
-        ],
-        turnstile: true,
-        customConfig: {},
-        connectOption: {},
-        disableXvfb: false,
-        ignoreAllFlags: false,
-    });
-    await page.setUserAgent(randomUserAgent());
-    await page.setExtraHTTPHeaders({
-        url,
-        'Sec-GPC': '1',
-        'DNT': '1',
-        'Accept-Language': 'en-US,en;q=0.9',
-        'Sec-Fetch-Dest': 'document',
-        'Sec-Fetch-Mode': 'navigate',
-        'Sec-Fetch-Site': 'cross-site',
-    });
-
-    await page.setRequestInterception(true);
-
-    await page.evaluateOnNewDocument(() => {
-        window.open = () => null;
-    });
-
-    page.on('dialog', async dialog => {
-        await dialog.accept();
-    });
-
-    page.on('request', async request => {
-        const url = request.url();
-        if (
-            url.includes('analytics') ||
-            url.includes('ads') ||
-            url.includes('social') ||
-            url.includes('disable-devtool') ||
-            url.includes('cloudflareinsights') ||
-            url.includes('ainouzaudre') ||
-            url.includes('pixel.embed') ||
-            url.includes('histats')
-        ) {
-            await request.abort();
-        } else if (url.includes('.mp4') || url.includes('.m3u8') || url.includes('/mp4')) {
-            logger.info(`${source} stream URL detected in request`);
-            streamUrls[`${source} Link`] = url;
-        } else {
-            await request.continue();
-        }
-    });
+    
+    let browser = null;
+    let page = null;
 
     try {
-        logger.info(`Navigating to ${url}`);
-        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 10000 });
-        logger.info('Player page loaded');
+        logger.info(`[${source}] Starting extraction for ${url}`);
 
-        if (source === 'videasy') {
-            await page.click('button');
-            logger.info('Clicked the play button for videasy');
-        }
-
-        if (source === 'vidsrc') {
-            const outerIframeHandle = await page.$('iframe');
-            logger.info('vidsrc iframe loaded');
-            const outerFrame = await outerIframeHandle.contentFrame();
-            await outerFrame.click('#pl_but');
-            logger.info('vidsrc button clicked');
-        }
-
-        logger.info(`${source} Waiting for m3u8/mp4 URLs.`);
-        const foundUrls = new Promise(resolve => {
-            const interval = setInterval(() => {
-                if (Object.keys(streamUrls).length > 0) {
-                    clearInterval(interval);
-                    resolve(true);
+        const { browser: browserInstance, page: pageInstance } = await connect({
+            headless: true,
+            args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-web-security',
+                '--disable-dev-shm-usage',
+                '--disable-features=IsolateOrigins,site-per-process',
+                '--enable-popup-blocking',
+                '--disable-background-timer-throttling',
+                '--disable-backgrounding-occluded-windows',
+                '--disable-renderer-backgrounding',
+                '--no-first-run',
+                '--disable-default-apps'
+            ],
+            turnstile: true,
+            customConfig: {},
+            connectOption: {
+                defaultViewport: {
+                    width: 1920,
+                    height: 1080
                 }
-            }, 500);
+            },
+            disableXvfb: false,
+            ignoreAllFlags: false,
         });
-        const timeout = new Promise((_, reject) =>
-             setTimeout(() => reject(new Error('Timeout: No stream URL detected within 10 seconds')), 10000)
-        );
-        await Promise.race([foundUrls, timeout]);
 
-        if (Object.keys(streamUrls).length === 0) {
-            throw new Error('No stream URL found');
+        browser = browserInstance;
+        page = pageInstance;
+
+        // Set user agent and headers
+        await page.setUserAgent(randomUserAgent());
+        await page.setExtraHTTPHeaders({
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Accept-Encoding': 'gzip, deflate',
+            'DNT': '1',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Cache-Control': 'max-age=0'
+        });
+
+        // Block unnecessary resources and track streams
+        await page.setRequestInterception(true);
+
+        page.on('request', async (request) => {
+            const requestUrl = request.url();
+            
+            // Block unwanted resources
+            if (
+                requestUrl.includes('analytics') ||
+                requestUrl.includes('ads') ||
+                requestUrl.includes('social') ||
+                requestUrl.includes('disable-devtool') ||
+                requestUrl.includes('cloudflareinsights') ||
+                requestUrl.includes('ainouzaudre') ||
+                requestUrl.includes('pixel.embed') ||
+                requestUrl.includes('histats') ||
+                requestUrl.includes('google-analytics') ||
+                requestUrl.includes('googletagmanager') ||
+                requestUrl.includes('facebook') ||
+                requestUrl.includes('twitter') ||
+                requestUrl.match(/\.(png|jpg|jpeg|gif|css|woff|woff2)$/i)
+            ) {
+                await request.abort();
+                return;
+            }
+
+            // Detect stream URLs
+            if (
+                requestUrl.includes('.mp4') || 
+                requestUrl.includes('.m3u8') || 
+                requestUrl.includes('/mp4') ||
+                requestUrl.includes('manifest.m3u8') ||
+                requestUrl.includes('playlist.m3u8') ||
+                (requestUrl.includes('stream') && (requestUrl.includes('.mp4') || requestUrl.includes('.m3u8')))
+            ) {
+                logger.info(`[${source}] Stream URL detected: ${requestUrl}`);
+                streamUrls[`${source} Link`] = requestUrl;
+            }
+
+            await request.continue();
+        });
+
+        // Handle dialogs
+        page.on('dialog', async (dialog) => {
+            logger.info(`[${source}] Dialog detected: ${dialog.message()}`);
+            await dialog.accept();
+        });
+
+        // Block new windows/popups
+        await page.evaluateOnNewDocument(() => {
+            window.open = () => null;
+            window.alert = () => null;
+            window.confirm = () => true;
+            window.prompt = () => null;
+        });
+
+        // Navigate to the page
+        logger.info(`[${source}] Navigating to ${url}`);
+        await page.goto(url, { 
+            waitUntil: 'domcontentloaded', 
+            timeout: 15000 
+        });
+
+        // Wait a bit for the page to load
+        await page.waitForTimeout(2000);
+
+        // Source-specific interactions
+        try {
+            if (source === 'videasy') {
+                const playButton = await page.$('button');
+                if (playButton) {
+                    await playButton.click();
+                    logger.info(`[${source}] Clicked play button`);
+                    await page.waitForTimeout(2000);
+                }
+            }
+
+            if (source === 'vidsrc') {
+                try {
+                    await page.waitForSelector('iframe', { timeout: 5000 });
+                    const iframe = await page.$('iframe');
+                    if (iframe) {
+                        const frame = await iframe.contentFrame();
+                        if (frame) {
+                            const playButton = await frame.$('#pl_but');
+                            if (playButton) {
+                                await playButton.click();
+                                logger.info(`[${source}] Clicked vidsrc play button`);
+                                await page.waitForTimeout(3000);
+                            }
+                        }
+                    }
+                } catch (e) {
+                    logger.warn(`[${source}] Could not interact with iframe: ${e.message}`);
+                }
+            }
+
+            if (source === 'vidfast') {
+                // Wait for potential play button or auto-play
+                await page.waitForTimeout(3000);
+                
+                // Look for common play button selectors
+                const playSelectors = [
+                    'button[aria-label*="play"]',
+                    '.play-button',
+                    '.vjs-big-play-button',
+                    '[data-testid="play-button"]',
+                    'button:contains("Play")'
+                ];
+
+                for (const selector of playSelectors) {
+                    try {
+                        const button = await page.$(selector);
+                        if (button) {
+                            await button.click();
+                            logger.info(`[${source}] Clicked play button with selector: ${selector}`);
+                            await page.waitForTimeout(2000);
+                            break;
+                        }
+                    } catch (e) {
+                        // Continue to next selector
+                    }
+                }
+            }
+
+        } catch (interactionError) {
+            logger.warn(`[${source}] Interaction error: ${interactionError.message}`);
         }
 
-        console.log(`${source} Stream URLs found: ${ JSON.stringify(streamUrls) }`);
-        return streamUrls;
-    } catch (err) {
-        logger.error(`Error extracting from ${source}: ${err.message}`);
+        // Wait for stream URLs to be detected
+        logger.info(`[${source}] Waiting for stream URLs...`);
+        
+        const maxWaitTime = 15000; // 15 seconds
+        const checkInterval = 500;
+        let waitTime = 0;
+
+        while (Object.keys(streamUrls).length === 0 && waitTime < maxWaitTime) {
+            await page.waitForTimeout(checkInterval);
+            waitTime += checkInterval;
+            
+            // Log progress every 5 seconds
+            if (waitTime % 5000 === 0) {
+                logger.info(`[${source}] Still waiting... (${waitTime/1000}s)`);
+            }
+        }
+
+        if (Object.keys(streamUrls).length > 0) {
+            logger.info(`[${source}] Successfully found ${Object.keys(streamUrls).length} stream(s)`);
+            return streamUrls;
+        } else {
+            logger.warn(`[${source}] No streams found after ${waitTime/1000}s`);
+            return {};
+        }
+
+    } catch (error) {
+        logger.error(`[${source}] Extraction error: ${error.message}`);
         return {};
     } finally {
-        await browser.close();
+        if (browser) {
+            try {
+                await browser.close();
+                logger.info(`[${source}] Browser closed`);
+            } catch (closeError) {
+                logger.error(`[${source}] Error closing browser: ${closeError.message}`);
+            }
+        }
     }
 }
 
