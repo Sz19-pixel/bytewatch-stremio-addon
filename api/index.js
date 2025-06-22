@@ -6,7 +6,7 @@ const extractor = require('./unified-extractor');
 
 const streamCache = new NodeCache({ stdTTL: 7200, checkperiod: 120 });
 
-const builder = new addonBuilder({
+const manifest = {
     id: 'org.bytetan.bytewatch',
     version: '1.0.0',
     name: 'ByteWatch',
@@ -16,7 +16,9 @@ const builder = new addonBuilder({
     catalogs: [],
     logo: 'https://www.bytetan.com/static/img/logo.png',
     idPrefixes: ['tt']
-});
+};
+
+const builder = new addonBuilder(manifest);
 
 async function fetchOmdbDetails(imdbId){
   try {
@@ -26,7 +28,7 @@ async function fetchOmdbDetails(imdbId){
      }
     return response.data;
   } catch (e) {
-    console.log(`Error fetching metadata: ${e}`)
+    logger.error(`Error fetching metadata: ${e}`)
     return null
   }
 }
@@ -43,7 +45,7 @@ async function fetchTmdbId(imdbId){
           });
       return response.data;
   } catch (e) {
-      console.log(`Error fetching metadata: ${e}`)
+      logger.error(`Error fetching TMDB ID: ${e}`)
       return null
   }
 }
@@ -57,7 +59,7 @@ async function extractAllStreams({type, imdbId, season, episode}) {
         : tmdbRes['tv_results'][0]?.id;
 
     if (!id) {
-        console.warn('❌ TMDB ID not found');
+        logger.warn('❌ TMDB ID not found');
         return streams;
     }
 
@@ -68,7 +70,7 @@ async function extractAllStreams({type, imdbId, season, episode}) {
         videasyResult,
         viloraResult,
         vidsrcResult,
-        vidfastResult // <-- Added vidfast
+        vidfastResult
     ] = await Promise.allSettled([
         extractor('broflix', type, id, season, episode),
         extractor('fmovies', type, id, season, episode),
@@ -76,7 +78,7 @@ async function extractAllStreams({type, imdbId, season, episode}) {
         extractor('videasy', type, id, season, episode),
         extractor('vilora', type, id, season, episode),
         extractor('vidsrc', type, id, season, episode),
-        extractor('vidfast', type, id, season, episode) // <-- Added vidfast
+        extractor('vidfast', type, id, season, episode)
     ]);
 
     for (const result of [
@@ -102,7 +104,7 @@ async function getMovieStreams(imdbId) {
         return Object.entries(cached).map(([name, url]) => ({
             name,
             url,
-            description: `${metadata.Title} (${metadata.Year})`
+            description: `${metadata ? metadata.Title : imdbId} (${metadata ? metadata.Year : ''})`
         }));
     }
     const streams = await extractAllStreams({ type: 'movie', imdbId });
@@ -111,7 +113,7 @@ async function getMovieStreams(imdbId) {
     return Object.entries(streams).map(([name, url]) => ({
         name,
         url,
-        description: `${metadata.Title} (${metadata.Year})`
+        description: `${metadata ? metadata.Title : imdbId} (${metadata ? metadata.Year : ''})`
     }));
 }
 
@@ -124,34 +126,55 @@ async function getSeriesStreams(imdbId, season, episode) {
         return Object.entries(cached).map(([name, url]) => ({
             name,
             url,
-            description: `${metadata.Title} S${season}E${episode}`
+            description: `${metadata ? metadata.Title : imdbId} S${season}E${episode}`
         }));
     }
 
     const streams = await extractAllStreams({ type: 'series', imdbId, season, episode });
+    streamCache.set(cacheKey, streams);
+
     return Object.entries(streams).map(([name, url]) => ({
         name,
         url,
-        description: `${metadata.Title} S${season}E${episode}`
+        description: `${metadata ? metadata.Title : imdbId} S${season}E${episode}`
     }));
 }
 
-builder.defineStreamHandler(async ({type, id}) => {
-    try {
-        if (type === 'movie') {
-            const imdbId = id.split(':')[0];
-            const streams = await getMovieStreams(imdbId);
-            return Promise.resolve( { streams });
-        }
-        if (type === 'series') {
-            const [imdbId, season, episode] = id.split(':');
-            const streams = await getSeriesStreams(imdbId, season, episode);
-            return Promise.resolve({ streams });
-        }
-        return { streams: [] };
-    } catch (error) {
-        return Promise.resolve({ streams: [] });
+// Vercel handler
+module.exports = async (req, res) => {
+    if (req.url === '/manifest.json') {
+        res.setHeader('Content-Type', 'application/json');
+        res.status(200).end(JSON.stringify(manifest));
+        return;
     }
-});
 
-module.exports = builder.getInterface();
+    // /stream/movie/tt1234567 or /stream/series/tt1234567:1:2
+    const streamMatch = req.url.match(/^\/stream\/(movie|series)\/(.+)/);
+    if (streamMatch) {
+        const type = streamMatch[1];
+        const id = streamMatch[2];
+        try {
+            if (type === 'movie') {
+                const imdbId = id.split(':')[0];
+                const streams = await getMovieStreams(imdbId);
+                res.setHeader('Content-Type', 'application/json');
+                res.status(200).end(JSON.stringify({ streams }));
+                return;
+            }
+            if (type === 'series') {
+                const [imdbId, season, episode] = id.split(':');
+                const streams = await getSeriesStreams(imdbId, season, episode);
+                res.setHeader('Content-Type', 'application/json');
+                res.status(200).end(JSON.stringify({ streams }));
+                return;
+            }
+        } catch (e) {
+            logger.error(`Stream handler error: ${e}`);
+            res.status(200).end(JSON.stringify({ streams: [] }));
+            return;
+        }
+    }
+
+    // Fallback: 404
+    res.status(404).end('Not Found');
+};
