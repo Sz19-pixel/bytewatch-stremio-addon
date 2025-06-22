@@ -18,40 +18,43 @@ const manifest = {
     idPrefixes: ['tt']
 };
 
-const builder = new addonBuilder(manifest);
-
-async function fetchOmdbDetails(imdbId){
-  try {
-    const response = await axios.get(`https://www.omdbapi.com/?i=${imdbId}&apikey=b1e4f11`);
-    if (response.data.Response === 'False') {
-      logger.error('OMDB error:', JSON.stringify(response.data));
-      return null;
+async function fetchOmdbDetails(imdbId) {
+    try {
+        const response = await axios.get(`https://www.omdbapi.com/?i=${imdbId}&apikey=b1e4f11`);
+        if (response.data.Response === 'False') {
+            logger.error('OMDB error: ' + JSON.stringify(response.data));
+            return null;
+        }
+        return response.data;
+    } catch (e) {
+        logger.error('Error fetching metadata: ' + (e?.toString?.() ?? e));
+        return null;
     }
-    return response.data;
-  } catch (e) {
-    logger.error(`Error fetching metadata: ${e?.toString?.() ?? e}`);
-    return null;
-  }
 }
 
-async function fetchTmdbId(imdbId){
-  try {
-      const response = await axios.get(`https://api.themoviedb.org/3/find/${imdbId}?external_source=imdb_id`,
-          {
-              method: 'GET',
-              headers: {
-                  accept: 'application/json',
-                  Authorization: 'Bearer eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI3M2EyNzkwNWM1Y2IzNjE1NDUyOWNhN2EyODEyMzc0NCIsIm5iZiI6MS43MjM1ODA5NTAwMDg5OTk4ZSs5LCJzdWIiOiI2NmJiYzIxNjI2NmJhZmVmMTQ4YzVkYzkiLCJzY29wZXMiOlsiYXBpX3JlYWQiXSwidmVyc2lvbiI6MX0.y7N6qt4Lja5M6wnFkqqo44mzEMJ60Pzvm0z_TfA1vxk'
-              }
-          });
-      return response.data;
-  } catch (e) {
-      logger.error(`Error fetching TMDB ID: ${e?.response?.data ? JSON.stringify(e.response.data) : e.toString()}`);
-      return null;
-  }
+async function fetchTmdbId(imdbId) {
+    try {
+        const response = await axios.get(
+            `https://api.themoviedb.org/3/find/${imdbId}?external_source=imdb_id`,
+            {
+                method: 'GET',
+                headers: {
+                    accept: 'application/json',
+                    Authorization: 'Bearer eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI3M2EyNzkwNWM1Y2IzNjE1NDUyOWNhN2EyODEyMzc0NCIsIm5iZiI6MS43MjM1ODA5NTAwMDg5OTk4ZSs5LCJzdWIiOiI2NmJiYzIxNjI2NmJhZmVmMTQ4YzVkYzkiLCJzY29wZXMiOlsiYXBpX3JlYWQiXSwidmVyc2lvbiI6MX0.y7N6qt4Lja5M6wnFkqqo44mzEMJ60Pzvm0z_TfA1vxk',
+                },
+            }
+        );
+        return response.data;
+    } catch (e) {
+        logger.error(
+            'Error fetching TMDB ID: ' +
+                (e?.response?.data ? JSON.stringify(e.response.data) : e.toString())
+        );
+        return null;
+    }
 }
 
-async function extractAllStreams({type, imdbId, season, episode}) {
+async function extractAllStreams({ type, imdbId, season, episode }) {
     const streams = {};
     const tmdbRes = await fetchTmdbId(imdbId);
 
@@ -76,28 +79,17 @@ async function extractAllStreams({type, imdbId, season, episode}) {
         return streams;
     }
 
-    const [
-        broflixResult,
-        fmoviesResult,
-        vidoraResult,
-        videasyResult,
-        viloraResult,
-        vidsrcResult,
-        vidfastResult
-    ] = await Promise.allSettled([
+    const results = await Promise.allSettled([
         extractor('broflix', type, id, season, episode),
         extractor('fmovies', type, id, season, episode),
         extractor('vidora', type, id, season, episode),
         extractor('videasy', type, id, season, episode),
         extractor('vilora', type, id, season, episode),
         extractor('vidsrc', type, id, season, episode),
-        extractor('vidfast', type, id, season, episode)
+        extractor('vidfast', type, id, season, episode),
     ]);
 
-    for (const result of [
-        broflixResult, fmoviesResult, vidoraResult,
-        videasyResult, viloraResult, vidsrcResult, vidfastResult
-    ]) {
+    for (const result of results) {
         if (result.status === 'fulfilled' && result.value) {
             for (const label in result.value) {
                 streams[label] = result.value[label];
@@ -117,7 +109,7 @@ async function getMovieStreams(imdbId) {
         return Object.entries(cached).map(([name, url]) => ({
             name,
             url,
-            description: `${metadata ? metadata.Title : imdbId} (${metadata ? metadata.Year : ''})`
+            description: `${metadata ? metadata.Title : imdbId} (${metadata ? metadata.Year : ''})`,
         }));
     }
     const streams = await extractAllStreams({ type: 'movie', imdbId });
@@ -126,7 +118,7 @@ async function getMovieStreams(imdbId) {
     return Object.entries(streams).map(([name, url]) => ({
         name,
         url,
-        description: `${metadata ? metadata.Title : imdbId} (${metadata ? metadata.Year : ''})`
+        description: `${metadata ? metadata.Title : imdbId} (${metadata ? metadata.Year : ''})`,
     }));
 }
 
@@ -139,7 +131,7 @@ async function getSeriesStreams(imdbId, season, episode) {
         return Object.entries(cached).map(([name, url]) => ({
             name,
             url,
-            description: `${metadata ? metadata.Title : imdbId} S${season}E${episode}`
+            description: `${metadata ? metadata.Title : imdbId} S${season}E${episode}`,
         }));
     }
 
@@ -149,15 +141,22 @@ async function getSeriesStreams(imdbId, season, episode) {
     return Object.entries(streams).map(([name, url]) => ({
         name,
         url,
-        description: `${metadata ? metadata.Title : imdbId} S${season}E${episode}`
+        description: `${metadata ? metadata.Title : imdbId} S${season}E${episode}`,
     }));
 }
 
-// Vercel handler with proper CORS headers
+// Vercel handler with CORS, health check, and robust error handling
 module.exports = async (req, res) => {
     // Always set CORS headers
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+
+    // Healthcheck or root
+    if (req.url === '/' || req.url === '/health') {
+        res.setHeader('Content-Type', 'application/json');
+        res.status(200).end(JSON.stringify({ status: 'ok' }));
+        return;
+    }
 
     if (req.url === '/manifest.json') {
         res.setHeader('Content-Type', 'application/json');
@@ -186,7 +185,7 @@ module.exports = async (req, res) => {
                 return;
             }
         } catch (e) {
-            logger.error(`Stream handler error: ${e?.toString?.() ?? e}`);
+            logger.error('Stream handler error: ' + (e?.toString?.() ?? e));
             res.setHeader('Content-Type', 'application/json');
             res.status(200).end(JSON.stringify({ streams: [] }));
             return;
