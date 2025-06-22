@@ -1,8 +1,8 @@
 const { addonBuilder } = require('stremio-addon-sdk');
 const NodeCache = require('node-cache');
 const axios = require('axios');
-const logger = require('../logger');
-const extractor = require('../unified-extractor');
+const logger = require('./logger');
+const extractor = require('./unified-extractor');
 
 const streamCache = new NodeCache({ stdTTL: 7200, checkperiod: 120 });
 
@@ -18,7 +18,6 @@ const builder = new addonBuilder({
     idPrefixes: ['tt']
 });
 
-// Fetch movie data
 async function fetchOmdbDetails(imdbId){
   try {
     const response = await axios.get(`https://www.omdbapi.com/?i=${imdbId}&apikey=b1e4f11`);
@@ -32,7 +31,6 @@ async function fetchOmdbDetails(imdbId){
   }
 }
 
-// Fetch TMDB ID
 async function fetchTmdbId(imdbId){
   try {
       const response = await axios.get(`https://api.themoviedb.org/3/find/${imdbId}?external_source=imdb_id`,
@@ -70,7 +68,7 @@ async function extractAllStreams({type, imdbId, season, episode}) {
         videasyResult,
         viloraResult,
         vidsrcResult,
-        vidfastResult
+        vidfastResult // <-- Added vidfast
     ] = await Promise.allSettled([
         extractor('broflix', type, id, season, episode),
         extractor('fmovies', type, id, season, episode),
@@ -78,7 +76,7 @@ async function extractAllStreams({type, imdbId, season, episode}) {
         extractor('videasy', type, id, season, episode),
         extractor('vilora', type, id, season, episode),
         extractor('vidsrc', type, id, season, episode),
-        extractor('vidfast', type, id, season, episode)
+        extractor('vidfast', type, id, season, episode) // <-- Added vidfast
     ]);
 
     for (const result of [
@@ -156,24 +154,4 @@ builder.defineStreamHandler(async ({type, id}) => {
     }
 });
 
-module.exports = async (req, res) => {
-    if (req.url === '/manifest.json') {
-        res.setHeader('Content-Type', 'application/json');
-        res.end(JSON.stringify(builder.getInterface().manifest));
-        return;
-    }
-
-    if (req.url.startsWith('/stream/')) {
-        const [ , resource, type, ...idParts ] = req.url.split('/');
-        const id = idParts.join('/');
-        if (resource === 'stream') {
-            const { streams } = await builder.getInterface().get('stream')({ type, id });
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ streams }));
-            return;
-        }
-    }
-
-    res.statusCode = 404;
-    res.end('Not found');
-}; 
+module.exports = builder.getInterface();
