@@ -23,13 +23,14 @@ const builder = new addonBuilder(manifest);
 async function fetchOmdbDetails(imdbId){
   try {
     const response = await axios.get(`https://www.omdbapi.com/?i=${imdbId}&apikey=b1e4f11`);
-     if (response.data.Response === 'False') {
-      throw new Error(response.data || 'Failed to fetch data from OMDB API');
-     }
+    if (response.data.Response === 'False') {
+      logger.error('OMDB error:', JSON.stringify(response.data));
+      return null;
+    }
     return response.data;
   } catch (e) {
-    logger.error(`Error fetching metadata: ${e}`)
-    return null
+    logger.error(`Error fetching metadata: ${e?.toString?.() ?? e}`);
+    return null;
   }
 }
 
@@ -45,8 +46,8 @@ async function fetchTmdbId(imdbId){
           });
       return response.data;
   } catch (e) {
-      logger.error(`Error fetching TMDB ID: ${e}`)
-      return null
+      logger.error(`Error fetching TMDB ID: ${e?.response?.data ? JSON.stringify(e.response.data) : e.toString()}`);
+      return null;
   }
 }
 
@@ -54,12 +55,24 @@ async function extractAllStreams({type, imdbId, season, episode}) {
     const streams = {};
     const tmdbRes = await fetchTmdbId(imdbId);
 
-    const id = type === 'movie'
-        ? tmdbRes['movie_results'][0]?.id
-        : tmdbRes['tv_results'][0]?.id;
+    if (!tmdbRes) {
+        logger.warn('❌ TMDB API error or no response');
+        return streams;
+    }
+
+    let id = null;
+    if (type === 'movie') {
+        if (Array.isArray(tmdbRes['movie_results']) && tmdbRes['movie_results'][0]) {
+            id = tmdbRes['movie_results'][0].id;
+        }
+    } else if (type === 'series') {
+        if (Array.isArray(tmdbRes['tv_results']) && tmdbRes['tv_results'][0]) {
+            id = tmdbRes['tv_results'][0].id;
+        }
+    }
 
     if (!id) {
-        logger.warn('❌ TMDB ID not found');
+        logger.warn('❌ TMDB ID not found (no movie_results or tv_results)');
         return streams;
     }
 
@@ -173,7 +186,7 @@ module.exports = async (req, res) => {
                 return;
             }
         } catch (e) {
-            logger.error(`Stream handler error: ${e}`);
+            logger.error(`Stream handler error: ${e?.toString?.() ?? e}`);
             res.setHeader('Content-Type', 'application/json');
             res.status(200).end(JSON.stringify({ streams: [] }));
             return;
