@@ -239,10 +239,8 @@
   </div>
 
   <script>
-    // Set the install button URL to the current domain + manifest
-    document.getElementById('installBtn').href = 'stremio://' + window.location.origin + '/manifest.json';
-    
-    // Add click tracking (optional)
+    document.getElementById('installBtn').href = 'stremio://https://bytewatch-stremio-addon.vercel.app/manifest.json';
+
     document.getElementById('installBtn').addEventListener('click', function() {
       console.log('Install button clicked');
     });
