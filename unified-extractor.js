@@ -25,7 +25,11 @@ const extractors = {
     vilora: (type, id, season, episode) =>
         type === 'movie'
             ? `https://veloratv.ru/watch/movie/${id}`
-            : `https://veloratv.ru/watch/tv/${id}/${season}/${episode}`
+            : `https://veloratv.ru/watch/tv/${id}/${season}/${episode}`,
+    vidfast: (type, id, season, episode) =>
+        type === 'movie'
+            ? `https://vidfast.pro/embed/movie/${id}`
+            : `https://vidfast.pro/embed/tv/${id}/${season}/${episode}`
 };
 
 function randomUserAgent() {
@@ -35,16 +39,12 @@ function randomUserAgent() {
 }
 
 async function runExtractor(source, type, imdbId, season = null, episode = null) {
-    // Check if the website is on the known list of websites
     if (!extractors[source]) throw new Error(`Unknown source: ${source}`);
 
-    // Storage for stream urls
     const streamUrls = {};
 
-    // Construct the website player url
     const url = extractors[source](type, imdbId, season, episode);
 
-    // Create and configure the browser
     const {browser, page} = await connect({
         headless: true,
         args: [
@@ -72,20 +72,16 @@ async function runExtractor(source, type, imdbId, season = null, episode = null)
         'Sec-Fetch-Site': 'cross-site',
     });
 
-    // Enable request interception and monitoring
     await page.setRequestInterception(true);
 
-    // Prevent pop-up ads
     await page.evaluateOnNewDocument(() => {
-        window.open = () => null; // Prevents any script from opening new windows
+        window.open = () => null;
     });
 
-    // Accept any dialogs
     page.on('dialog', async dialog => {
         await dialog.accept();
     });
 
-    // Monitor all network requests for m3u8 or mp4 files
     page.on('request', async request => {
         const url = request.url();
         if (
@@ -98,35 +94,31 @@ async function runExtractor(source, type, imdbId, season = null, episode = null)
             url.includes('pixel.embed') ||
             url.includes('histats')
         ) {
-            // block the request for ads or tracking
             await request.abort();
         } else if (url.includes('.mp4') || url.includes('.m3u8') || url.includes('/mp4')) {
             logger.info(`${source} stream URL detected in request`);
-            // Categorize the stream URLs
             streamUrls[`${source} Link`] = url;
         } else {
-            // allow the request
             await request.continue();
         }
     });
 
-    // Start the process
     try {
         logger.info(`Navigating to ${url}`);
         await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 10000 });
         logger.info('Player page loaded');
 
         if (source === 'videasy') {
-            await page.click('button')
-            logger.info('Clicked the play button for videasy')
+            await page.click('button');
+            logger.info('Clicked the play button for videasy');
         }
 
         if (source === 'vidsrc') {
             const outerIframeHandle = await page.$('iframe');
-            logger.info('vidsrc iframe loaded')
+            logger.info('vidsrc iframe loaded');
             const outerFrame = await outerIframeHandle.contentFrame();
             await outerFrame.click('#pl_but');
-            logger.info('vidsrc button clicked')
+            logger.info('vidsrc button clicked');
         }
 
         logger.info(`${source} Waiting for m3u8/mp4 URLs.`);
@@ -138,18 +130,16 @@ async function runExtractor(source, type, imdbId, season = null, episode = null)
                 }
             }, 500);
         });
-         const timeout = new Promise((_, reject) =>
+        const timeout = new Promise((_, reject) =>
              setTimeout(() => reject(new Error('Timeout: No stream URL detected within 10 seconds')), 10000)
-         );
+        );
         await Promise.race([foundUrls, timeout]);
 
-
-        // Check if we found any stream URLs
-        if (streamUrls.length === 0) {
+        if (Object.keys(streamUrls).length === 0) {
             throw new Error('No stream URL found');
         }
 
-        console.log(`${source} Stream URLs found: ${ streamUrls }`);
+        console.log(`${source} Stream URLs found: ${ JSON.stringify(streamUrls) }`);
         return streamUrls;
     } catch (err) {
         logger.error(`Error extracting from ${source}: ${err.message}`);
