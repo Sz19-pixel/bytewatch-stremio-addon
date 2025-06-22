@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>ByteWatch Stremio Addon</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    html, body {
+      background: linear-gradient(135deg, #141e30 0%, #243b55 100%);
+      color: #fff;
+      font-family: 'Segoe UI', sans-serif;
+      margin: 0;
+      height: 100%;
+      min-height: 100vh;
+    }
+    .container {
+      max-width: 380px;
+      margin: 5% auto 0 auto;
+      background: rgba(24,34,54,0.93);
+      border-radius: 20px;
+      box-shadow: 0 12px 32px 0 #0004;
+      padding: 36px 28px 28px 28px;
+      text-align: center;
+    }
+    .logo {
+      width: 64px;
+      margin-bottom: 12px;
+      filter: drop-shadow(0 0 12px #16a08588);
+    }
+    h1 {
+      margin: 0 0 12px 0;
+      font-size: 2rem;
+      letter-spacing: 2px;
+      font-weight: 600;
+      color: #16a085;
+    }
+    p {
+      color: #d1e2fa;
+      margin-bottom: 28px;
+      font-size: 1.05em;
+      line-height: 1.6;
+    }
+    .install-btn {
+      display: inline-block;
+      padding: 14px 38px;
+      background: linear-gradient(90deg, #16a085 30%, #2980b9 100%);
+      color: #fff;
+      font-size: 1.1em;
+      font-weight: 600;
+      border: none;
+      border-radius: 30px;
+      text-decoration: none;
+      box-shadow: 0 4px 24px 0 #16a08544;
+      letter-spacing: 1px;
+      cursor: pointer;
+      transition: background 0.25s, transform 0.15s;
+    }
+    .install-btn:hover {
+      background: linear-gradient(90deg, #2980b9 10%, #16a085 100%);
+      transform: translateY(-2px) scale(1.03);
+    }
+    .footer {
+      margin-top: 22px;
+      font-size: 0.95em;
+      color: #8eb9c7;
+      opacity: 0.7;
+    }
+    @media (max-width:500px) {
+      .container { margin-top: 30px; padding: 24px 8px 18px 8px; }
+      h1 { font-size: 1.3rem; }
+      .logo { width: 48px; }
+      .install-btn { font-size: 1em; padding: 12px 20px;}
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <img src="https://www.bytetan.com/static/img/logo.png" class="logo" alt="ByteWatch Logo">
+    <h1>ByteWatch Addon</h1>
+    <p>
+      Instantly unlock streams from multiple sites directly in Stremio.<br>
+      <span style="color:#16a085; font-weight:600;">One addon, every source.</span>
+    </p>
+    <a id="installBtn" class="install-btn" href="#">Install in Stremio</a>
+    <div class="footer">
+      Open source &bull; <a href="https://github.com/93bx/bytewatch-stremio-addon" style="color:#8eb9c7;">GitHub</a>
+    </div>
+  </div>
+  <script>
+    (function() {
+      var manifestUrl = window.location.origin + '/manifest.json';
+      document.getElementById('installBtn').href = 'stremio://' + manifestUrl;
+    })();
+  </script>
+</body>
+  </html> 
