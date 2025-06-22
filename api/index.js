@@ -271,7 +271,7 @@ const landingPageHTML = `
 
   <script>
     // Set the install button URL to the current domain + manifest
-    document.getElementById('installBtn').href = 'stremio://' + window.location.origin + '/manifest.json';
+    document.getElementById('installBtn').href = 'stremio://' + window.location.hostname + '/manifest.json';
     
     // Add click tracking (optional)
     document.getElementById('installBtn').addEventListener('click', function() {
